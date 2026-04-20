@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý nghỉ phép 2026</title>
+    <title>Quản lý nghỉ phép Đa Năm</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,46 +13,21 @@
         :root { --font-sans: -apple-system, sans-serif; --color-bg: #f4f7f6; }
         body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); color: #333; }
         .container { max-width: 1100px; margin: 20px auto; padding: 0 10px; }
-        
-        /* 4 Card trên 1 hàng cho Mobile */
-        .stats-grid { 
-            display: grid; grid-template-columns: repeat(4, 1fr); 
-            gap: 6px; margin-bottom: 20px; 
-        }
-        .stat-card { 
-            background: white; padding: 12px 2px; border-radius: 10px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center;
-        }
-        .stat-label { font-size: 0.55rem; color: #888; text-transform: uppercase; margin-bottom: 4px; line-height: 1.2; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 10px 2px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+        .stat-label { font-size: 0.55rem; color: #888; text-transform: uppercase; margin-bottom: 4px; }
         .stat-value { font-size: 1rem; font-weight: 800; }
-
-        /* Layout 2 cột */
         .main-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
         @media (max-width: 850px) { .main-layout { grid-template-columns: 1fr; } }
-
         .calendar-box { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 15px; }
-        
-        .day-cell { 
-            aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            border-radius: 6px; cursor: pointer; position: relative; font-size: 0.9rem;
-        }
+        .day-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer; position: relative; font-size: 0.9rem; }
         .day-cell.weekend { color: #ddd; cursor: default; }
         .day-cell.today { border: 2px solid #1890ff !important; font-weight: bold; }
-        
-        /* Tooltip */
-        .tooltip {
-            visibility: hidden; position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 4px;
-            font-size: 10px; z-index: 10; opacity: 0; pointer-events: none; white-space: nowrap;
-        }
+        .tooltip { visibility: hidden; position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 4px; font-size: 10px; z-index: 10; opacity: 0; pointer-events: none; white-space: nowrap; }
         .day-cell:hover .tooltip { visibility: visible; opacity: 1; }
-        .half-dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 2px; }
-
         .history-box { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .history-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
-        .history-item:hover { background: #fafafa; }
-        
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .modal-content { background: white; padding: 20px; border-radius: 12px; width: 300px; }
         .type-btn { padding: 6px 8px; border-radius: 15px; border: 1px solid #eee; cursor: pointer; font-size: 10px; margin: 2px; }
@@ -61,7 +36,6 @@
 <body>
     <div id="root"></div>
     <script type="text/babel">
-        // === Dán Firebase Config của bạn tại đây ===
         const firebaseConfig = {
             apiKey: "AIzaSyAkKbXmU_nFvFJT6QcgI2KiRzux-Mb2PFg",
             authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
@@ -96,31 +70,51 @@
             const [selectedDate, setSelectedDate] = useState(null);
             const [modalData, setModalData] = useState({ type: "annual", note: "", half: false });
 
+            // Lấy dữ liệu theo năm đang chọn
             useEffect(() => {
-                db.ref(`leaves_v3/${year}`).on('value', s => {
-                    if(s.val()) {
-                        setLeaves(s.val().data || {});
-                        setTotalPhep(s.val().total || 12);
-                    }
+                setLoading(true);
+                const ref = db.ref(`leaves_multi_year/${year}`);
+                ref.on('value', s => {
+                    const val = s.val();
+                    setLeaves(val?.data || {});
+                    setTotalPhep(val?.total || 12);
                     setLoading(false);
                 });
+                return () => ref.off();
             }, [year]);
+
+            // Logic Chuyển Tháng & Năm
+            const prevMonth = () => {
+                if (month === 0) { setMonth(11); setYear(year - 1); } 
+                else { setMonth(month - 1); }
+            };
+            const nextMonth = () => {
+                if (month === 11) { setMonth(0); setYear(year + 1); } 
+                else { setMonth(month + 1); }
+            };
 
             const taken = Object.values(leaves).reduce((acc, curr) => acc + (curr.type === 'wfh' ? 0 : (curr.half ? 0.5 : 1)), 0);
             
-            // CÔNG THỨC MỚI: Tích lũy theo tỉ lệ tháng
-            const currentMonth = today.getMonth() + 1;
-            const accrued = (year < today.getFullYear()) ? 0 : (totalPhep * currentMonth) / 12;
+            // Công thức Tích lũy chuẩn: if(năm < năm nay, 0, (Tổng * Tháng)/12)
+            const currentMonthReal = today.getMonth() + 1;
+            let accrued = 0;
+            if (year === today.getFullYear()) {
+                accrued = (totalPhep * currentMonthReal) / 12;
+            } else if (year > today.getFullYear()) {
+                accrued = 0; // Năm tương lai chưa có phép tích lũy
+            } else {
+                accrued = totalPhep; // Năm cũ coi như đã tích lũy hết 100%
+            }
 
             const handleSave = () => {
                 const newData = { ...leaves, [selectedDate]: modalData };
-                db.ref(`leaves_v3/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_multi_year/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
             const handleDelete = () => {
                 const newData = { ...leaves }; delete newData[selectedDate];
-                db.ref(`leaves_v3/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_multi_year/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
@@ -128,27 +122,27 @@
             const firstDay = new Date(year, month, 1).getDay();
             const cells = [...Array(firstDay).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
 
-            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang đồng bộ...</div>;
+            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang tải dữ liệu {year}...</div>;
 
             return (
                 <div className="container">
-                    <h3 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép {year}</h3>
+                    <h3 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép</h3>
                     
                     <div className="stats-grid">
                         <div className="stat-card">
-                            <div className="stat-label">Tổng năm</div>
+                            <div className="stat-label">Định mức {year}</div>
                             <input type="number" value={totalPhep} onChange={e => {
                                 const v = Number(e.target.value); setTotalPhep(v);
-                                db.ref(`leaves_v3/${year}/total`).set(v);
+                                db.ref(`leaves_multi_year/${year}/total`).set(v);
                             }} style={{border:'none', textAlign:'center', width:'100%', fontSize:'1rem', fontWeight:800, outline:'none'}} />
                         </div>
                         <div className="stat-card">
-                            <div className="stat-label">Tích lũy</div>
+                            <div className="stat-label">Tích lũy thực</div>
                             <div className="stat-value" style={{color:'#1890ff'}}>{accrued.toFixed(1)}</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Đã nghỉ</div>
-                            <div className="stat-value" style={{color: taken > accrued ? '#ff4d4f' : '#D85A30'}}>{taken}</div>
+                            <div className="stat-value" style={{color: (year === today.getFullYear() && taken > accrued) ? '#ff4d4f' : '#D85A30'}}>{taken}</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Còn lại</div>
@@ -158,10 +152,10 @@
 
                     <div className="main-layout">
                         <div className="calendar-box">
-                            <div style={{display:'flex', justifyContent:'space-between', padding:'12px 15px', alignItems:'center', background:'#fafafa'}}>
-                                <button onClick={()=>setMonth(month===0?11:month-1)} style={{border:'none', background:'none', cursor:'pointer', fontSize:18}}>‹</button>
-                                <b style={{fontSize:14}}>Tháng {month + 1}, {year}</b>
-                                <button onClick={()=>setMonth(month===11?0:month+1)} style={{border:'none', background:'none', cursor:'pointer', fontSize:18}}>›</button>
+                            <div style={{display:'flex', justifyContent:'space-between', padding:'12px 15px', alignItems:'center', background:'#fafafa', borderBottom:'1px solid #eee'}}>
+                                <button onClick={prevMonth} style={{border:'none', background:'none', cursor:'pointer', fontSize:20}}>‹</button>
+                                <b style={{fontSize:15}}>Tháng {month + 1} / {year}</b>
+                                <button onClick={nextMonth} style={{border:'none', background:'none', cursor:'pointer', fontSize:20}}>›</button>
                             </div>
                             <div className="calendar-grid">
                                 {["CN","T2","T3","T4","T5","T6","T7"].map(d => <div key={d} style={{textAlign:'center', fontSize:10, color:'#bbb'}}>{d}</div>)}
@@ -177,7 +171,7 @@
                                             onClick={() => { if(!isWe) { setSelectedDate(dStr); setModalData(l || {type:'annual', note:'', half:false}); setShowModal(true); } }}
                                             style={type ? {background: type.bg, color: type.color, fontWeight:700} : {}}>
                                             {d}
-                                            {l?.half && <div className="half-dot" style={{background: type.color}}></div>}
+                                            {l?.half && <div style={{width:4, height:4, borderRadius:'50%', background: type.color, marginTop:2}}></div>}
                                             {type && <div className="tooltip">{type.label} {l.half ? '(½)' : ''} {l.note ? `: ${l.note}` : ''}</div>}
                                         </div>
                                     )
@@ -186,8 +180,8 @@
                         </div>
 
                         <div className="history-box">
-                            <h4 style={{marginTop:0, fontSize:13, borderBottom:'1px solid #eee', paddingBottom:10}}>Lịch sử nghỉ</h4>
-                            <div style={{maxHeight: 350, overflowY:'auto'}}>
+                            <h4 style={{marginTop:0, fontSize:13, borderBottom:'1px solid #eee', paddingBottom:10}}>Lịch sử nghỉ {year}</h4>
+                            <div style={{maxHeight: 400, overflowY:'auto'}}>
                                 {Object.entries(leaves).sort((a,b)=>new Date(b[0])-new Date(a[0])).map(([date, data]) => {
                                     const t = LEAVE_TYPES.find(x => x.id === data.type);
                                     return (
@@ -200,6 +194,7 @@
                                         </div>
                                     )
                                 })}
+                                {Object.keys(leaves).length === 0 && <div style={{fontSize:11, color:'#ccc', textAlign:'center', padding:20}}>Chưa có dữ liệu nghỉ năm {year}</div>}
                             </div>
                         </div>
                     </div>
