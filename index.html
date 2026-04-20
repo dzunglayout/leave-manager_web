@@ -17,223 +17,163 @@
             --color-background-info: #e6f7ff;
             --color-border-tertiary: #eeeeee;
             --color-border-secondary: #dddddd;
-            --color-border-info: #91d5ff;
             --color-text-primary: #333333;
             --color-text-secondary: #666666;
-            --color-text-tertiary: #999999;
             --color-text-info: #1890ff;
             --color-text-danger: #ff4d4f;
-            --color-border-danger: #ffa39e;
         }
         body { margin: 0; background-color: #fafafa; color: var(--color-text-primary); font-family: var(--font-sans); }
-        button:active { transform: scale(0.98); }
-        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 10px; }
+        .day-cell { text-align: center; padding: 8px 0; border-radius: 6px; cursor: pointer; font-size: 13px; transition: 0.2s; position: relative; }
+        .day-cell:hover { background: #f0f0f0; }
+        .weekend { color: #ccc; cursor: default; }
+        .weekend:hover { background: transparent; }
+        .half-dot { width: 4px; height: 4px; border-radius: 50%; margin: 2px auto 0; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 24px; border-radius: 12px; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // === 1. DÁN FIREBASE CONFIG CỦA BẠN VÀO ĐÂY ===
+        // === 1. CẤU HÌNH FIREBASE (Dán chính xác mã của bạn vào đây) ===
         const firebaseConfig = {
             apiKey: "AIzaSyAkKbXmU_nFvFJT6QcgI2KiRzux-Mb2PFg",
-            authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
+  authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
             databaseURL: "https://project-76b15d43-d9c9-4a13-880-default-rtdb.firebaseio.com",
             projectId: "project-76b15d43-d9c9-4a13-880",
-            storageBucket: "project-76b15d43-d9c9-4a13-880.firebasestorage.app",
-            messagingSenderId: "274258504150",
-            appId: "1:274258504150:web:9d0e6c5f95ae71a683dc77",
-            measurementId: "G-E3MP9S2KQ4"
+  storageBucket: "project-76b15d43-d9c9-4a13-880.firebasestorage.app",
+  messagingSenderId: "274258504150",
+  appId: "1:274258504150:web:9d0e6c5f95ae71a683dc77",
+  measurementId: "G-E3MP9S2KQ4"
         };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const { useState, useEffect, useCallback } = React;
 
-        // === 2. CÁC HẰNG SỐ VÀ HÀM TIỆN ÍCH (Từ file leave-manager.jsx) ===
         const LEAVE_TYPES = [
-          { id: "annual",    label: "Phép năm",       color: "#1D9E75", bg: "#E1F5EE", border: "#5DCAA5" },
-          { id: "sick",      label: "Phép ốm",         color: "#D85A30", bg: "#FAECE7", border: "#F0997B" },
-          { id: "personal",  label: "Việc cá nhân",    color: "#185FA5", bg: "#E6F1FB", border: "#85B7EB" },
-          { id: "maternity", label: "Thai sản",         color: "#993556", bg: "#FBEAF0", border: "#ED93B1" },
-          { id: "unpaid",    label: "Không lương",      color: "#5F5E5A", bg: "#F1EFE8", border: "#B4B2A9" },
-          { id: "wfh",       label: "Làm từ xa (WFH)", color: "#534AB7", bg: "#EEEDFE", border: "#AFA9EC" },
+            { id: "annual", label: "Phép năm", color: "#1D9E75", bg: "#E1F5EE" },
+            { id: "sick", label: "Phép ốm", color: "#D85A30", bg: "#FAECE7" },
+            { id: "personal", label: "Việc cá nhân", color: "#185FA5", bg: "#E6F1FB" },
+            { id: "maternity", label: "Thai sản", color: "#993556", bg: "#FBEAF0" },
+            { id: "unpaid", label: "Không lương", color: "#5F5E5A", bg: "#F1EFE8" },
+            { id: "wfh", label: "Làm từ xa (WFH)", color: "#534AB7", bg: "#EEEDFE" },
         ];
         const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
         const MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
 
         const isWeekend = (date) => { const d = new Date(date); return d.getDay() === 0 || d.getDay() === 6; };
         const formatDate = (y, m, d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-        const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
-        const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
 
-        // === 3. COMPONENT CHÍNH ===
         function LeaveManager() {
             const today = new Date();
             const [year, setYear] = useState(today.getFullYear());
             const [currentMonth, setCurrentMonth] = useState(today.getMonth());
             const [leaves, setLeaves] = useState({});
             const [totalLeave, setTotalLeave] = useState(12);
+            const [loading, setLoading] = useState(true);
             const [showModal, setShowModal] = useState(false);
             const [selectedDate, setSelectedDate] = useState(null);
             const [modalData, setModalData] = useState({ type: "annual", note: "", half: false });
-            const [viewMode, setViewMode] = useState("month");
-            const [loading, setLoading] = useState(true);
-            const [editingLeave, setEditingLeave] = useState(null);
 
-            // Đồng bộ với Firebase
             useEffect(() => {
                 setLoading(true);
-                const dataRef = db.ref(`leaves_data/${year}`);
-                dataRef.on('value', (snapshot) => {
-                    const val = snapshot.val();
-                    if (val) {
-                        setLeaves(val.leaves || {});
-                        setTotalLeave(val.totalLeave || 12);
-                    } else {
-                        setLeaves({});
-                        setTotalLeave(12);
+                const ref = db.ref(`leaves_data/${year}`);
+                ref.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setLeaves(data.leaves || {});
+                        setTotalLeave(data.totalLeave || 12);
                     }
                     setLoading(false);
                 });
-                return () => dataRef.off();
+                return () => ref.off();
             }, [year]);
-
-            const syncData = (newLeaves, newTotal) => {
-                db.ref(`leaves_data/${year}`).set({ leaves: newLeaves, totalLeave: newTotal });
-            };
 
             const saveLeave = () => {
                 const newLeaves = { ...leaves, [selectedDate]: { ...modalData, date: selectedDate } };
-                setLeaves(newLeaves);
-                syncData(newLeaves, totalLeave);
+                db.ref(`leaves_data/${year}`).set({ leaves: newLeaves, totalLeave });
                 setShowModal(false);
             };
 
-            const deleteLeave = (dateStr) => {
+            const deleteLeave = () => {
                 const newLeaves = { ...leaves };
-                delete newLeaves[dateStr];
-                setLeaves(newLeaves);
-                syncData(newLeaves, totalLeave);
+                delete newLeaves[selectedDate];
+                db.ref(`leaves_data/${year}`).set({ leaves: newLeaves, totalLeave });
                 setShowModal(false);
             };
 
-            const stats = useCallback(() => {
+            const stats = (() => {
                 let taken = 0;
                 Object.values(leaves).forEach(l => { if (l.type !== "wfh") taken += (l.half ? 0.5 : 1); });
-                return { total: totalLeave, taken, remaining: Math.max(0, totalLeave - taken) };
-            }, [leaves, totalLeave]);
+                return { taken, remaining: totalLeave - taken };
+            })();
 
-            const s = stats();
-            const typeMap = Object.fromEntries(LEAVE_TYPES.map(t => [t.id, t]));
+            if (loading) return <div style={{textAlign:'center', padding:50}}>🔄 Đang tải dữ liệu Cloud...</div>;
 
-            // Hàm mở Modal
-            function openAddModal(dateStr) {
-                const existing = leaves[dateStr];
-                if (existing) {
-                    setEditingLeave(dateStr);
-                    setModalData({ type: existing.type, note: existing.note || "", half: existing.half || false });
-                } else {
-                    setEditingLeave(null);
-                    setModalData({ type: "annual", note: "", half: false });
-                }
-                setSelectedDate(dateStr);
-                setShowModal(true);
-            }
+            const dim = new Date(year, currentMonth + 1, 0).getDate();
+            const firstDay = new Date(year, currentMonth, 1).getDay();
+            const days = [];
+            for (let i = 0; i < firstDay; i++) days.push(null);
+            for (let d = 1; d <= dim; d++) days.push(d);
 
-            // Component Lịch con
-            function MonthCalendar({ month, yr, mini }) {
-                const dim = getDaysInMonth(yr, month);
-                const firstDay = getFirstDayOfMonth(yr, month);
-                const cells = [];
-                for (let i = 0; i < firstDay; i++) cells.push(null);
-                for (let d = 1; d <= dim; d++) cells.push(d);
-                while (cells.length % 7 !== 0) cells.push(null);
+            return (
+                <div style={{maxWidth:600, margin:"20px auto", padding:"0 20px"}}>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20}}>
+                        <h2 style={{margin:0}}>Nghỉ phép {year}</h2>
+                        <div style={{background:"#eee", padding:"8px 15px", borderRadius:8, fontSize:14}}>
+                            Còn: <b>{stats.remaining}</b> / {totalLeave}
+                        </div>
+                    </div>
 
-                const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
-
-                return (
-                    <div style={{background:"var(--color-background-primary)", borderRadius:12, border:"0.5px solid var(--color-border-tertiary)", overflow:"hidden"}}>
-                        {!mini && (
-                            <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", borderBottom:"0.5px solid var(--color-border-tertiary)"}}>
-                                <button onClick={() => setCurrentMonth(m => (m === 0 ? 11 : m - 1))} style={{background:"none", border:"1px solid var(--color-border-secondary)", borderRadius:6, padding:"4px 10px", cursor:"pointer"}}>‹</button>
-                                <span style={{fontWeight:500}}>{MONTHS[month]} {yr}</span>
-                                <button onClick={() => setCurrentMonth(m => (m === 11 ? 0 : m + 1))} style={{background:"none", border:"1px solid var(--color-border-secondary)", borderRadius:6, padding:"4px 10px", cursor:"pointer"}}>›</button>
-                            </div>
-                        )}
-                        <div style={{display:"grid", gridTemplateColumns:"repeat(7,1fr)", padding: mini ? "5px" : "10px", gap: 2}}>
-                            {WEEKDAYS.map(w => <div key={w} style={{textAlign:"center", fontSize:11, color:"#999"}}>{w}</div>)}
-                            {cells.map((d, i) => {
+                    <div style={{background:"white", borderRadius:12, border:"1px solid #eee", overflow:"hidden"}}>
+                        <div style={{display:"flex", justifyContent:"space-between", padding:15, borderBottom:"1px solid #eee"}}>
+                            <button onClick={()=>setCurrentMonth(m=>m===0?11:m-1)} style={{border:"1px solid #ddd", background:"none", borderRadius:4, cursor:"pointer"}}>‹</button>
+                            <span style={{fontWeight:500}}>{MONTHS[currentMonth]}</span>
+                            <button onClick={()=>setCurrentMonth(m=>m===11?0:m+1)} style={{border:"1px solid #ddd", background:"none", borderRadius:4, cursor:"pointer"}}>›</button>
+                        </div>
+                        <div className="calendar-grid">
+                            {WEEKDAYS.map(w => <div key={w} style={{textAlign:"center", fontSize:11, color:"#999", marginBottom:5}}>{w}</div>)}
+                            {days.map((d, i) => {
                                 if (!d) return <div key={i} />;
-                                const dateStr = formatDate(yr, month, d);
-                                const leave = leaves[dateStr];
-                                const weekend = isWeekend(new Date(yr, month, d));
-                                const lt = leave ? typeMap[leave.type] : null;
+                                const dStr = formatDate(year, currentMonth, d);
+                                const l = leaves[dStr];
+                                const weekend = isWeekend(new Date(year, currentMonth, d));
+                                const type = l ? LEAVE_TYPES.find(t=>t.id===l.type) : null;
                                 return (
-                                    <div key={i} onClick={() => !weekend && openAddModal(dateStr)}
-                                        style={{
-                                            textAlign:"center", padding: mini ? "2px" : "8px 0", borderRadius:6, fontSize: mini ? 10 : 13,
-                                            cursor: weekend ? "default" : "pointer",
-                                            background: lt ? lt.bg : "transparent",
-                                            color: weekend ? "#ccc" : lt ? lt.color : "inherit",
-                                            border: dateStr === todayStr ? "1px solid var(--color-border-info)" : "1px solid transparent"
-                                        }}>
+                                    <div key={i} className={`day-cell ${weekend?'weekend':''}`} 
+                                        onClick={() => !weekend && (setSelectedDate(dStr), setModalData(l||{type:"annual",note:"",half:false}), setShowModal(true))}
+                                        style={{background: type?type.bg:'transparent', color: type?type.color:''}}>
                                         {d}
-                                        {leave?.half && <div style={{width:4, height:4, borderRadius:"50%", background:lt.color, margin:"0 auto"}} />}
+                                        {l?.half && <div className="half-dot" style={{background:type.color}} />}
                                     </div>
                                 );
                             })}
                         </div>
                     </div>
-                );
-            }
 
-            if (loading) return <div style={{textAlign:'center', padding:50}}>🔄 Đang kết nối dữ liệu Google Cloud...</div>;
-
-            return (
-                <div style={{maxWidth:800, margin:"0 auto", padding:"20px"}}>
-                    <div style={{display:"flex", justifyContent:"space-between", marginBottom:20}}>
-                        <h2>Quản lý nghỉ phép {year}</h2>
-                        <div>
-                            <button onClick={() => setViewMode(v => v === "month" ? "year" : "month")} className="btn">
-                                Chế độ: {viewMode === "month" ? "Tháng" : "Năm"}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Stats Card */}
-                    <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:20}}>
-                        <div style={{padding:15, background:"#eee", borderRadius:10}}>Tổng: <b>{totalLeave}</b></div>
-                        <div style={{padding:15, background:"#ffece7", borderRadius:10}}>Đã nghỉ: <b>{s.taken}</b></div>
-                        <div style={{padding:15, background:"#e1f5ee", borderRadius:10}}>Còn lại: <b>{s.remaining}</b></div>
-                    </div>
-
-                    {viewMode === "month" ? (
-                        <MonthCalendar month={currentMonth} yr={year} mini={false} />
-                    ) : (
-                        <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
-                            {Array.from({length:12}, (_,i) => <MonthCalendar key={i} month={i} yr={year} mini={true} />)}
-                        </div>
-                    )}
-
-                    {/* Modal (Dán code Modal từ file gốc của bạn vào đây) */}
                     {showModal && (
-                        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center"}}>
-                            <div style={{background:"white", padding:25, borderRadius:15, minWidth:300}}>
-                                <h3>{selectedDate}</h3>
-                                <div style={{display:"flex", flexWrap:"wrap", gap:5, marginBottom:15}}>
+                        <div className="modal-overlay">
+                            <div className="modal-content">
+                                <h4 style={{marginTop:0}}>{selectedDate}</h4>
+                                <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:15}}>
                                     {LEAVE_TYPES.map(t => (
-                                        <button key={t.id} onClick={() => setModalData({...modalData, type:t.id})}
-                                            style={{background: modalData.type === t.id ? t.bg : "#f0f0f0", border:"none", padding:"5px 10px", borderRadius:15, cursor:"pointer"}}>
+                                        <button key={t.id} onClick={()=>setModalData({...modalData, type:t.id})}
+                                            style={{fontSize:11, padding:"4px 8px", borderRadius:4, border:"1px solid #ddd", cursor:"pointer",
+                                            background: modalData.type===t.id?t.bg:'white', color: modalData.type===t.id?t.color:''}}>
                                             {t.label}
                                         </button>
                                     ))}
                                 </div>
-                                <input type="text" placeholder="Ghi chú..." value={modalData.note} onChange={e => setModalData({...modalData, note:e.target.value})} style={{width:"100%", marginBottom:15, padding:8}} />
-                                <div style={{display:"flex", gap:10}}>
-                                    <button onClick={saveLeave} style={{flex:1, padding:10, background:"#1890ff", color:"white", border:"none", borderRadius:5}}>Lưu</button>
-                                    <button onClick={() => setShowModal(false)} style={{padding:10}}>Đóng</button>
-                                    {editingLeave && <button onClick={() => deleteLeave(selectedDate)} style={{color:"red"}}>Xóa</button>}
+                                <label style={{fontSize:13, display:"block", marginBottom:10}}>
+                                    <input type="checkbox" checked={modalData.half} onChange={e=>setModalData({...modalData, half:e.target.checked})} /> Nghỉ nửa ngày
+                                </label>
+                                <div style={{display:"flex", gap:8}}>
+                                    <button onClick={saveLeave} style={{flex:1, background:"#1890ff", color:"white", border:"none", padding:8, borderRadius:6, cursor:"pointer"}}>Lưu</button>
+                                    <button onClick={()=>setShowModal(false)} style={{flex:1, border:"1px solid #ddd", background:"none", borderRadius:6, cursor:"pointer"}}>Hủy</button>
+                                    {leaves[selectedDate] && <button onClick={deleteLeave} style={{color:"red", border:"none", background:"none", cursor:"pointer"}}>Xóa</button>}
                                 </div>
                             </div>
                         </div>
