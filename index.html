@@ -10,14 +10,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
-        :root { --font-sans: -apple-system, sans-serif; --color-bg: #f4f7f6; }
+        :root { --font-sans: -apple-system, system-ui, sans-serif; --color-bg: #f4f7f6; }
         body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); color: #333; }
         .container { max-width: 1100px; margin: 20px auto; padding: 0 10px; }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 20px; }
-        .stat-card { background: white; padding: 10px 2px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+        .stat-card { background: white; padding: 12px 2px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
         .stat-label { font-size: 0.55rem; color: #888; text-transform: uppercase; margin-bottom: 4px; }
         .stat-value { font-size: 1rem; font-weight: 800; }
-        .main-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
+        .main-layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
         @media (max-width: 850px) { .main-layout { grid-template-columns: 1fr; } }
         .calendar-box { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 15px; }
@@ -33,12 +33,11 @@
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .modal-content { background: white; padding: 20px; border-radius: 12px; width: 280px; }
         .type-btn { padding: 6px 8px; border-radius: 15px; border: 1px solid #eee; cursor: pointer; font-size: 10px; margin: 2px; background: white; }
-    </script>
+    </style>
 </head>
 <body>
     <div id="root"></div>
     <script type="text/babel">
-        // === Dán Firebase Config của bạn tại đây ===
         const firebaseConfig = {
             apiKey: "AIzaSyAkKbXmU_nFvFJT6QcgI2KiRzux-Mb2PFg",
             authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
@@ -75,7 +74,7 @@
 
             useEffect(() => {
                 setLoading(true);
-                const ref = db.ref(`leaves_final/${year}`);
+                const ref = db.ref(`leaves_v4/${year}`);
                 ref.on('value', s => {
                     const val = s.val();
                     setLeaves(val?.data || {});
@@ -94,13 +93,13 @@
 
             const handleSave = () => {
                 const newData = { ...leaves, [selectedDate]: modalData };
-                db.ref(`leaves_final/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_v4/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
             const handleDelete = () => {
                 const newData = { ...leaves }; delete newData[selectedDate];
-                db.ref(`leaves_final/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_v4/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
@@ -108,19 +107,19 @@
             const firstDay = new Date(year, month, 1).getDay();
             const cells = [...Array(firstDay).fill(null), ...Array.from({length: dim}, (_, i) => i + 1)];
 
-            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang tải dữ liệu...</div>;
+            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang đồng bộ Cloud...</div>;
 
             return (
                 <div className="container">
-                    <h3 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép</h3>
+                    <h3 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép {year}</h3>
                     
                     <div className="stats-grid">
                         <div className="stat-card">
                             <div className="stat-label">Tổng năm</div>
                             <input type="number" value={totalPhep} onChange={e => {
                                 const v = Number(e.target.value); setTotalPhep(v);
-                                db.ref(`leaves_final/${year}/total`).set(v);
-                            }} style={{border:'none', textAlign:'center', width:'100%', fontSize:'1rem', fontWeight:800, outline:'none'}} />
+                                db.ref(`leaves_v4/${year}/total`).set(v);
+                            }} style={{border:'none', textAlign:'center', width:'100%', fontSize:'0.9rem', fontWeight:800, outline:'none'}} />
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Tích lũy</div>
@@ -138,11 +137,11 @@
 
                     <div className="main-layout">
                         <div className="calendar-box">
-                            <div style={{display:'flex', justifyContent:'space-between', padding:'12px 15px', alignItems:'center', background:'#fafafa', borderBottom:'1px solid #eee'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', padding:'10px 15px', alignItems:'center', background:'#fafafa', borderBottom:'1px solid #eee'}}>
                                 <button className="nav-arrow" onClick={prevMonth}>‹</button>
-                                <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-                                    <b style={{fontSize:14}}>T{month + 1} / {year}</b>
-                                    <button className="btn-today" onClick={goToToday}>Hôm nay</button>
+                                <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                                    <b style={{fontSize:13}}>T{month + 1} / {year}</b>
+                                    <button className="btn-today" onClick={goToToday}>Today</button>
                                 </div>
                                 <button className="nav-arrow" onClick={nextMonth}>›</button>
                             </div>
@@ -154,9 +153,9 @@
                                     const isToday = dStr === `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
                                     const l = leaves[dStr];
                                     const type = l ? LEAVE_TYPES.find(t=>t.id===l.type) : null;
-                                    const isWe = i%7===0 || i%7===6;
+                                    const isWe = i % 7 === 0 || i % 7 === 6;
                                     return (
-                                        <div key={i} className={`day-cell ${isWe?'weekend':''} ${isToday?'today':''}`} 
+                                        <div key={i} className={`day-cell ${isWe ? 'weekend' : ''} ${isToday ? 'today' : ''}`} 
                                             onClick={() => { if(!isWe) { setSelectedDate(dStr); setModalData(l || {type:'annual', note:'', half:false}); setShowModal(true); } }}
                                             style={type ? {background: type.bg, color: type.color, fontWeight:700} : {}}>
                                             {d}
@@ -170,15 +169,15 @@
 
                         <div className="history-box">
                             <h4 style={{marginTop:0, fontSize:13, borderBottom:'1px solid #eee', paddingBottom:10}}>Lịch sử {year}</h4>
-                            <div style={{maxHeight: 350, overflowY:'auto'}}>
+                            <div style={{maxHeight: 400, overflowY:'auto'}}>
                                 {Object.entries(leaves).sort((a,b)=>new Date(b[0])-new Date(a[0])).map(([date, data]) => {
                                     const t = LEAVE_TYPES.find(x => x.id === data.type);
                                     return (
                                         <div key={date} className="history-item" onClick={() => { setSelectedDate(date); setModalData(data); setShowModal(true); }}>
-                                            <div style={{width:6, height:6, borderRadius:'50%', background: t.color}}></div>
+                                            <div style={{width:6, height:6, borderRadius:'50%', background: t?.color || '#ccc'}}></div>
                                             <div style={{flex:1, fontSize:12}}>
                                                 <b>{date.split('-').reverse().join('/')}</b>
-                                                <div style={{fontSize:10, color:'#999'}}>{t.label} {data.note && `- ${data.note}`}</div>
+                                                <div style={{fontSize:10, color:'#999'}}>{t?.label || 'Không rõ'} {data.note && `- ${data.note}`}</div>
                                             </div>
                                         </div>
                                     )
@@ -199,10 +198,10 @@
                                         </button>
                                     ))}
                                 </div>
-                                <label style={{fontSize:12, display:'block', marginBottom:10}}>
-                                    <input type="checkbox" checked={modalData.half} onChange={e=>setModalData({...modalData, half:e.target.checked})} /> Nghỉ nửa ngày
+                                <label style={{fontSize:12, display:'block', marginBottom:10, cursor:'pointer'}}>
+                                    <input type="checkbox" checked={modalData.half} onChange={e=>setModalData({...modalData, half:e.target.checked})} /> Nghỉ nửa ngày (0.5)
                                 </label>
-                                <input type="text" placeholder="Ghi chú..." value={modalData.note} onChange={e=>setModalData({...modalData, note:e.target.value})} style={{width:'100%', padding:8, marginBottom:15, boxSizing:'border-box'}} />
+                                <input type="text" placeholder="Ghi chú..." value={modalData.note} onChange={e=>setModalData({...modalData, note:e.target.value})} style={{width:'100%', padding:8, marginBottom:15, boxSizing:'border-box', border:'1px solid #ddd', borderRadius:4}} />
                                 <div style={{display:'flex', gap:10}}>
                                     <button onClick={handleSave} style={{flex:1, background:'#1890ff', color:'white', border:'none', padding:8, borderRadius:4, cursor:'pointer'}}>Lưu</button>
                                     {leaves[selectedDate] && <button onClick={handleDelete} style={{color:'red', border:'none', background:'none', cursor:'pointer'}}>Xóa</button>}
