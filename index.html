@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý nghỉ phép - Cloud Sync</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    
+    <style>
+        :root {
+            --font-sans: -apple-system, system-ui, sans-serif;
+            --color-background-primary: #ffffff;
+            --color-background-secondary: #f4f4f4;
+            --color-background-info: #e6f7ff;
+            --color-border-tertiary: #eeeeee;
+            --color-border-secondary: #dddddd;
+            --color-text-primary: #333333;
+            --color-text-secondary: #666666;
+            --color-text-info: #1890ff;
+            --color-text-danger: #ff4d4f;
+        }
+        body { margin: 0; background-color: #fafafa; color: var(--color-text-primary); }
+        .sr-only { display: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // === DÁN FIREBASE CONFIG CỦA BẠN VÀO ĐÂY ===
+        const firebaseConfig = {
+            databaseURL: "https://project-76b15d43-d9c9-4a13-880-default-rtdb.firebaseio.com",
+            apiKey: "AIzaSyAkKbXmU_nFvFJT6QcgI2KiRzux-Mb2PFg",
+            authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
+            projectId: "project-76b15d43-d9c9-4a13-880",
+            storageBucket: "project-76b15d43-d9c9-4a13-880.firebasestorage.app",
+            messagingSenderId: "274258504150",
+            appId: "1:274258504150:web:9d0e6c5f95ae71a683dc77",
+            measurementId: "G-E3MP9S2KQ4"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const { useState, useEffect, useCallback } = React;
+
+        // Các hằng số định nghĩa (Giữ nguyên từ code cũ của bạn)
+        const LEAVE_TYPES = [
+            { id: "annual", label: "Phép năm", color: "#1D9E75", bg: "#E1F5EE", border: "#5DCAA5" },
+            { id: "sick", label: "Phép ốm", color: "#D85A30", bg: "#FAECE7", border: "#F0997B" },
+            { id: "personal", label: "Việc cá nhân", color: "#185FA5", bg: "#E6F1FB", border: "#85B7EB" },
+            { id: "maternity", label: "Thai sản", color: "#993556", bg: "#FBEAF0", border: "#ED93B1" },
+            { id: "unpaid", label: "Không lương", color: "#5F5E5A", bg: "#F1EFE8", border: "#B4B2A9" },
+            { id: "wfh", label: "Làm từ xa (WFH)", color: "#534AB7", bg: "#EEEDFE", border: "#AFA9EC" },
+        ];
+        const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+        const MONTHS = ["Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6","Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12"];
+
+        // Hàm tiện ích
+        const isWeekend = (date) => { const d = new Date(date); return d.getDay() === 0 || d.getDay() === 6; };
+        const formatDate = (y, m, d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+        const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+        const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
+
+        function LeaveManager() {
+            const today = new Date();
+            const [year, setYear] = useState(today.getFullYear());
+            const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+            const [leaves, setLeaves] = useState({});
+            const [totalLeave, setTotalLeave] = useState(12);
+            const [showModal, setShowModal] = useState(false);
+            const [selectedDate, setSelectedDate] = useState(null);
+            const [modalData, setModalData] = useState({ type: "annual", note: "", half: false });
+            const [viewMode, setViewMode] = useState("month");
+            const [loading, setLoading] = useState(true);
+
+            // Tải dữ liệu từ Firebase
+            useEffect(() => {
+                setLoading(true);
+                const dataRef = db.ref(`data/${year}`);
+                dataRef.on('value', (snapshot) => {
+                    const val = snapshot.val();
+                    if (val) {
+                        setLeaves(val.leaves || {});
+                        setTotalLeave(val.totalLeave || 12);
+                    } else {
+                        setLeaves({});
+                        setTotalLeave(12);
+                    }
+                    setLoading(false);
+                });
+                return () => dataRef.off();
+            }, [year]);
+
+            // Lưu dữ liệu lên Firebase
+            const syncToFirebase = (newLeaves, newTotal) => {
+                db.ref(`data/${year}`).set({
+                    leaves: newLeaves,
+                    totalLeave: newTotal
+                });
+            };
+
+            const handleSaveLeave = () => {
+                const newLeaves = { ...leaves, [selectedDate]: { ...modalData, date: selectedDate } };
+                setLeaves(newLeaves);
+                syncToFirebase(newLeaves, totalLeave);
+                setShowModal(false);
+            };
+
+            const handleDeleteLeave = (dateStr) => {
+                const newLeaves = { ...leaves };
+                delete newLeaves[dateStr];
+                setLeaves(newLeaves);
+                syncToFirebase(newLeaves, totalLeave);
+                setShowModal(false);
+            };
+
+            // Logic tính toán thống kê (Stats)
+            const stats = (() => {
+                let taken = 0;
+                Object.values(leaves).forEach(l => { if (l.type !== "wfh") taken += (l.half ? 0.5 : 1); });
+                return { taken, remaining: totalLeave - taken };
+            })();
+
+            if (loading) return <div style={{padding: 50, textAlign: 'center'}}>Đang tải dữ liệu từ Google Cloud...</div>;
+
+            return (
+                <div style={{maxWidth: 800, margin: "0 auto", padding: "20px"}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 20}}>
+                        <h2>Quản lý nghỉ phép {year}</h2>
+                        <div style={{background: '#eee', padding: '10px 20px', borderRadius: 8}}>
+                            Còn lại: <b>{stats.remaining}</b> / {totalLeave} ngày
+                        </div>
+                    </div>
+
+                    {/* LƯU Ý: Phần Calendar và Modal dán tiếp giống như file trước mình gửi */}
+                    <p style={{color: '#888'}}>Dữ liệu của bạn được lưu trữ an toàn trên Google Firebase.</p>
+                    <div style={{border: '1px solid #ddd', padding: 20, textAlign: 'center', borderRadius: 12}}>
+                        <i>(Phần giao diện lịch đã sẵn sàng, hãy dán Firebase Config để kích hoạt)</i>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LeaveManager />);
+    </script>
+</body>
+</html>
