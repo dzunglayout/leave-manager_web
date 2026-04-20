@@ -12,20 +12,21 @@
     <style>
         :root { --font-sans: -apple-system, sans-serif; --color-bg: #f4f7f6; }
         body { margin: 0; background: var(--color-bg); font-family: var(--font-sans); color: #333; }
-        .container { max-width: 1100px; margin: 20px auto; padding: 0 15px; }
+        .container { max-width: 1100px; margin: 20px auto; padding: 0 10px; }
         
-        /* Ép 4 Card trên 1 hàng cho cả Mobile */
+        /* 4 Card trên 1 hàng cho Mobile */
         .stats-grid { 
             display: grid; grid-template-columns: repeat(4, 1fr); 
-            gap: 8px; margin-bottom: 20px; 
+            gap: 6px; margin-bottom: 20px; 
         }
         .stat-card { 
-            background: white; padding: 10px 2px; border-radius: 10px; 
+            background: white; padding: 12px 2px; border-radius: 10px; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center;
         }
-        .stat-label { font-size: 0.6rem; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .stat-label { font-size: 0.55rem; color: #888; text-transform: uppercase; margin-bottom: 4px; line-height: 1.2; }
         .stat-value { font-size: 1rem; font-weight: 800; }
 
+        /* Layout 2 cột */
         .main-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; }
         @media (max-width: 850px) { .main-layout { grid-template-columns: 1fr; } }
 
@@ -39,16 +40,18 @@
         .day-cell.weekend { color: #ddd; cursor: default; }
         .day-cell.today { border: 2px solid #1890ff !important; font-weight: bold; }
         
+        /* Tooltip */
         .tooltip {
-            visibility: hidden; position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; border-radius: 4px;
-            font-size: 10px; z-index: 10; opacity: 0; pointer-events: none;
+            visibility: hidden; position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 4px;
+            font-size: 10px; z-index: 10; opacity: 0; pointer-events: none; white-space: nowrap;
         }
         .day-cell:hover .tooltip { visibility: visible; opacity: 1; }
         .half-dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 2px; }
 
         .history-box { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .history-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+        .history-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+        .history-item:hover { background: #fafafa; }
         
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .modal-content { background: white; padding: 20px; border-radius: 12px; width: 300px; }
@@ -58,6 +61,7 @@
 <body>
     <div id="root"></div>
     <script type="text/babel">
+        // === Dán Firebase Config của bạn tại đây ===
         const firebaseConfig = {
             apiKey: "AIzaSyAkKbXmU_nFvFJT6QcgI2KiRzux-Mb2PFg",
             authDomain: "project-76b15d43-d9c9-4a13-880.firebaseapp.com",
@@ -93,7 +97,7 @@
             const [modalData, setModalData] = useState({ type: "annual", note: "", half: false });
 
             useEffect(() => {
-                db.ref(`leaves_v2/${year}`).on('value', s => {
+                db.ref(`leaves_v3/${year}`).on('value', s => {
                     if(s.val()) {
                         setLeaves(s.val().data || {});
                         setTotalPhep(s.val().total || 12);
@@ -103,17 +107,20 @@
             }, [year]);
 
             const taken = Object.values(leaves).reduce((acc, curr) => acc + (curr.type === 'wfh' ? 0 : (curr.half ? 0.5 : 1)), 0);
-            const accrued = (today.getFullYear() > year) ? 12 : (today.getFullYear() < year) ? 0 : today.getMonth() + 1;
+            
+            // CÔNG THỨC MỚI: Tích lũy theo tỉ lệ tháng
+            const currentMonth = today.getMonth() + 1;
+            const accrued = (year < today.getFullYear()) ? 0 : (totalPhep * currentMonth) / 12;
 
             const handleSave = () => {
                 const newData = { ...leaves, [selectedDate]: modalData };
-                db.ref(`leaves_v2/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_v3/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
             const handleDelete = () => {
                 const newData = { ...leaves }; delete newData[selectedDate];
-                db.ref(`leaves_v2/${year}`).set({ data: newData, total: totalPhep });
+                db.ref(`leaves_v3/${year}`).set({ data: newData, total: totalPhep });
                 setShowModal(false);
             };
 
@@ -121,23 +128,23 @@
             const firstDay = new Date(year, month, 1).getDay();
             const cells = [...Array(firstDay).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
 
-            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang tải...</div>;
+            if(loading) return <div style={{padding:50, textAlign:'center'}}>🔄 Đang đồng bộ...</div>;
 
             return (
                 <div className="container">
-                    <h2 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép {year}</h2>
+                    <h3 style={{textAlign:'center', margin:'10px 0 20px'}}>Quản lý nghỉ phép {year}</h3>
                     
                     <div className="stats-grid">
                         <div className="stat-card">
                             <div className="stat-label">Tổng năm</div>
                             <input type="number" value={totalPhep} onChange={e => {
                                 const v = Number(e.target.value); setTotalPhep(v);
-                                db.ref(`leaves_v2/${year}/total`).set(v);
+                                db.ref(`leaves_v3/${year}/total`).set(v);
                             }} style={{border:'none', textAlign:'center', width:'100%', fontSize:'1rem', fontWeight:800, outline:'none'}} />
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Tích lũy</div>
-                            <div className="stat-value" style={{color:'#1890ff'}}>{accrued}</div>
+                            <div className="stat-value" style={{color:'#1890ff'}}>{accrued.toFixed(1)}</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Đã nghỉ</div>
@@ -145,16 +152,16 @@
                         </div>
                         <div className="stat-card">
                             <div className="stat-label">Còn lại</div>
-                            <div className="stat-value" style={{color:'#1D9E75'}}>{totalPhep - taken}</div>
+                            <div className="stat-value" style={{color:'#1D9E75'}}>{(totalPhep - taken).toFixed(1)}</div>
                         </div>
                     </div>
 
                     <div className="main-layout">
                         <div className="calendar-box">
-                            <div style={{display:'flex', justifyContent:'space-between', padding:15, alignItems:'center', background:'#fafafa'}}>
-                                <button onClick={()=>setMonth(month===0?11:month-1)} style={{border:'none', background:'none', cursor:'pointer'}}>‹</button>
-                                <h4 style={{margin:0}}>Tháng {month + 1}, {year}</h4>
-                                <button onClick={()=>setMonth(month===11?0:month+1)} style={{border:'none', background:'none', cursor:'pointer'}}>›</button>
+                            <div style={{display:'flex', justifyContent:'space-between', padding:'12px 15px', alignItems:'center', background:'#fafafa'}}>
+                                <button onClick={()=>setMonth(month===0?11:month-1)} style={{border:'none', background:'none', cursor:'pointer', fontSize:18}}>‹</button>
+                                <b style={{fontSize:14}}>Tháng {month + 1}, {year}</b>
+                                <button onClick={()=>setMonth(month===11?0:month+1)} style={{border:'none', background:'none', cursor:'pointer', fontSize:18}}>›</button>
                             </div>
                             <div className="calendar-grid">
                                 {["CN","T2","T3","T4","T5","T6","T7"].map(d => <div key={d} style={{textAlign:'center', fontSize:10, color:'#bbb'}}>{d}</div>)}
@@ -180,7 +187,7 @@
 
                         <div className="history-box">
                             <h4 style={{marginTop:0, fontSize:13, borderBottom:'1px solid #eee', paddingBottom:10}}>Lịch sử nghỉ</h4>
-                            <div style={{maxHeight: 300, overflowY:'auto'}}>
+                            <div style={{maxHeight: 350, overflowY:'auto'}}>
                                 {Object.entries(leaves).sort((a,b)=>new Date(b[0])-new Date(a[0])).map(([date, data]) => {
                                     const t = LEAVE_TYPES.find(x => x.id === data.type);
                                     return (
@@ -210,7 +217,7 @@
                                     ))}
                                 </div>
                                 <label style={{fontSize:12, display:'block', marginBottom:10}}>
-                                    <input type="checkbox" checked={modalData.half} onChange={e=>setModalData({...modalData, half:e.target.checked})} /> Nghỉ nửa ngày
+                                    <input type="checkbox" checked={modalData.half} onChange={e=>setModalData({...modalData, half:e.target.checked})} /> Nghỉ nửa ngày (0.5)
                                 </label>
                                 <input type="text" placeholder="Ghi chú..." value={modalData.note} onChange={e=>setModalData({...modalData, note:e.target.value})} style={{width:'100%', padding:8, marginBottom:15, boxSizing:'border-box'}} />
                                 <div style={{display:'flex', gap:10}}>
